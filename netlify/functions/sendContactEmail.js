@@ -1,46 +1,67 @@
 // netlify/functions/sendContactEmail.js
-const fetch = require("node-fetch"); // if needed, add node-fetch to package.json
 
 exports.handler = async (event) => {
   try {
+    // 1) Parse the incoming form data
     const { name, email, phone, department, message } = JSON.parse(event.body);
 
-    // Build Brevo payload
+    // 2) Build the Sendinblue (Brevo) payload
     const payload = {
-      sender: { name: "Clinic Website", email: process.env.BREVO_FROM_EMAIL },
-      to: [{ email: process.env.BREVO_TO_EMAIL }],
+      sender: {
+        name:  "Clinic Website",
+        email: process.env.BREVO_FROM_EMAIL,   // e.g. "noreply@clinicdomain.com"
+      },
+      to: [
+        { email: process.env.BREVO_TO_EMAIL }  // e.g. "reception@clinic.com"
+      ],
       replyTo: { email, name },
       subject: `New Contact: ${name}`,
       textContent: `
-Name: ${name}
-Email: ${email}
-Phone: ${phone}
+Name:       ${name}
+Email:      ${email}
+Phone:      ${phone}
 Department: ${department || "Not specified"}
 
 Message:
 ${message}
-      `,
+      `.trim(),
     };
 
-    // Call Brevo API
-    const res = await fetch("https://api.sendinblue.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "api-key": process.env.BREVO_API_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
+    // 3) Call the Sendinblue API via the **global** fetch
+    const response = await fetch(
+      "https://api.sendinblue.com/v3/smtp/email",
+      {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key":       process.env.BREVO_API_KEY,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
 
-    if (res.status >= 200 && res.status < 300) {
-      return { statusCode: 200, body: JSON.stringify({ success: true }) };
-    } else {
-      const errorText = await res.text();
-      console.error("Brevo error:", res.status, errorText);
-      return { statusCode: res.status, body: errorText };
+    // 4) If Brevo returns an error status, capture it
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Brevo API error:", response.status, errorText);
+      return {
+        statusCode: response.status,
+        body: errorText,
+      };
     }
+
+    // 5) On success, return a 200
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ success: true }),
+    };
+
   } catch (err) {
-    console.error("Function error:", err);
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    // Catch JSON parse errors or unexpected crashes
+    console.error("Function exception:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message }),
+    };
   }
 };
