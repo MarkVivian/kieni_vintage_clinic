@@ -1,44 +1,46 @@
 // netlify/functions/sendContactEmail.js
-const sendgrid = require("@sendgrid/mail");
-
-// Load your API key from Netlify environment vars
-sendgrid.setApiKey(process.env.SENDGRID_API_KEY);
+const fetch = require("node-fetch"); // if needed, add node-fetch to package.json
 
 exports.handler = async (event) => {
   try {
-    // Parse the incoming POST body (JSON)
-    const data = JSON.parse(event.body);
+    const { name, email, phone, department, message } = JSON.parse(event.body);
 
-    // Destructure form fields
-    const { name, email, phone, department, message } = data;
+    // Build Brevo payload
+    const payload = {
+      sender: { name: "Clinic Website", email: process.env.BREVO_FROM_EMAIL },
+      to: [{ email: process.env.BREVO_TO_EMAIL }],
+      replyTo: { email, name },
+      subject: `New Contact: ${name}`,
+      textContent: `
+Name: ${name}
+Email: ${email}
+Phone: ${phone}
+Department: ${department || "Not specified"}
 
-    // Compose the email
-    const msg = {
-      to: process.env.SENDGRID_TO_EMAIL,               // Clinic’s inbox
-      from: process.env.SENDGRID_FROM_EMAIL,           // Verified sender
-      subject: `New Contact Form Submission: ${name}`,
-      text: [
-        `Name: ${name}`,
-        `Email: ${email}`,
-        `Phone: ${phone}`,
-        `Department: ${department || "Not specified"}`,
-        `Message: ${message}`,
-      ].join("\n\n"),
+Message:
+${message}
+      `,
     };
 
-    // Send it!
-    await sendgrid.send(msg);
+    // Call Brevo API
+    const res = await fetch("https://api.sendinblue.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
 
-    // Netlify function success response
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ success: true }),
-    };
+    if (res.status >= 200 && res.status < 300) {
+      return { statusCode: 200, body: JSON.stringify({ success: true }) };
+    } else {
+      const errorText = await res.text();
+      console.error("Brevo error:", res.status, errorText);
+      return { statusCode: res.status, body: errorText };
+    }
   } catch (err) {
-    console.error("Error sending email:", err);
-    return {
-      statusCode: err.code || 500,
-      body: JSON.stringify({ error: err.message }),
-    };
+    console.error("Function error:", err);
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
