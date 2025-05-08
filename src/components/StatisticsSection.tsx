@@ -6,7 +6,7 @@ export function StatisticsSection() {
   const stats = [
     {
       icon: <FaSmile />,
-      value: "5,000+",
+      value: "5000+",
       label: "Happy Patients",
     },
     {
@@ -23,7 +23,7 @@ export function StatisticsSection() {
       icon: <FaAward />,
       value: "12",
       label: "Medical Awards",
-    },
+    }
   ]
 
   return (
