@@ -5,7 +5,6 @@ import { useState, type FormEvent } from "react";
 import { useInView } from "../utils/scroll-observer";
 import { colors } from "../utils/colors";
 import { FaChevronDown, FaPaperPlane, FaExclamationCircle } from "react-icons/fa";
-import { sendEmail } from "../utils/send-email";
 
 interface FormErrors {
   name?: string;
@@ -77,19 +76,15 @@ export function ContactForm() {
       setIsSubmitting(true);
       setSubmitError("");
 
-      await sendEmail({
-        to: "fox242avenger@gmail.com", // Replace with the actual recipient email
-        subject: `New message from ${formData.name}`,
-        message: `
-          Name: ${formData.name}
-          Email: ${formData.email}
-          Phone: ${formData.phone}
-          Department: ${formData.department || "Not specified"}
-          
-          Message:
-          ${formData.message}
-        `,
+      const res = await fetch("/.netlify/functions/sendContactEmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
       });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error || "Unknown error");
+      }
 
       setSubmitSuccess(true);
 
@@ -105,7 +100,8 @@ export function ContactForm() {
         setSubmitSuccess(false);
       }, 5000);
     } catch (error) {
-      setSubmitError("Failed to send message. Please try again later. " + error);
+      setSubmitError("Sorry, we couldn’t send your message. Please try again later.");
+      console.error("Contact form error:", error);
     } finally {
       setIsSubmitting(false);
     }
